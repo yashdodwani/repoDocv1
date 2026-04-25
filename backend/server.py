@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 telegram_svc: Optional[TelegramService] = None
 github_svc: Optional[GitHubService] = None
 _telegram_task = None
+_gh_comment_task = None
 
 
 def get_llm_key():
@@ -40,7 +41,7 @@ def get_llm_key():
 
 
 async def init_services():
-    global telegram_svc, github_svc, _telegram_task
+    global telegram_svc, github_svc, _telegram_task, _gh_comment_task
     settings = await db.settings.find_one({"id": "global"})
 
     gh_token = (settings or {}).get("github_token") or os.environ.get("GITHUB_TOKEN", "")
@@ -48,11 +49,16 @@ async def init_services():
 
     if gh_token:
         github_svc = GitHubService(gh_token)
+        # Start GitHub PR comment polling
+        if _gh_comment_task is None or _gh_comment_task.done():
+            _gh_comment_task = asyncio.create_task(
+                github_svc.poll_pr_comments(db, get_llm_key())
+            )
 
     if tg_token and (_telegram_task is None or _telegram_task.done()):
         telegram_svc = TelegramService(tg_token)
         _telegram_task = asyncio.create_task(
-            telegram_svc.start_polling(db, trigger_analysis_from_telegram)
+            telegram_svc.start_polling(db, trigger_analysis_from_telegram, llm_key=get_llm_key())
         )
 
 
@@ -79,10 +85,32 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    global _telegram_task
+    global _telegram_task, _gh_comment_task
     if _telegram_task:
         _telegram_task.cancel()
+    if _gh_comment_task:
+        _gh_comment_task.cancel()
     client.close()
+
+
+# ── GitHub Webhook ────────────────────────────────────────────────────────────
+
+@api_router.post("/webhook/github")
+async def github_webhook(request: dict):
+    """Receive GitHub webhook events for PR comments."""
+    action = request.get("action", "")
+    comment = request.get("comment", {})
+    pr = request.get("issue", {}) or request.get("pull_request", {})
+    pr_url = pr.get("html_url", "")
+
+    if action == "created" and comment and pr_url and github_svc:
+        # Find the matching analysis
+        analysis = await db.analyses.find_one({"pr_url": pr_url}, {"_id": 0})
+        if analysis:
+            asyncio.create_task(
+                github_svc._check_and_reply(analysis, db, get_llm_key())
+            )
+    return {"ok": True}
 
 
 # ── Analysis Routes ───────────────────────────────────────────────────────────
