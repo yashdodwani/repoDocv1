@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import {
   Eye, Plus, Trash2, RefreshCw, GitBranch, GitPullRequest,
-  AlertCircle, CheckCircle2, ExternalLink, Zap, Power,
+  AlertCircle, CheckCircle2, ExternalLink, Zap, Power, Rewind,
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -85,7 +85,7 @@ function AddRepoForm({ guardrails, onAdd }) {
   );
 }
 
-function WatchedRepoCard({ watched, guardrails, onUpdate, onDelete, onCheckNow, onShowEvents, expanded }) {
+function WatchedRepoCard({ watched, guardrails, onUpdate, onDelete, onCheckNow, onReplay, onShowEvents, expanded }) {
   const gname = guardrails.find((g) => g.id === watched.guardrails_id)?.name || "—";
   const branchCount = Object.keys(watched.last_commits || {}).length;
   return (
@@ -110,6 +110,14 @@ function WatchedRepoCard({ watched, guardrails, onUpdate, onDelete, onCheckNow, 
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={onReplay}
+            title="Replay last commit (demo)"
+            data-testid={`replay-${watched.id}`}
+            className="p-2 border border-amber-700/50 text-amber-400 hover:bg-amber-400/10"
+          >
+            <Rewind size={12} />
+          </button>
           <button
             onClick={onCheckNow}
             title="Check now"
@@ -237,6 +245,14 @@ export default function Watch() {
     setTimeout(fetchAll, 4000);
   };
 
+  const handleReplay = async (id) => {
+    if (!window.confirm("Replay the last commit? This will re-evaluate the current HEAD against guardrails — perfect for live demos.")) return;
+    await axios.post(`${API}/watched-repos/${id}/replay`);
+    setTimeout(fetchAll, 4000);
+    setTimeout(fetchAll, 15000);
+    setTimeout(fetchAll, 30000);
+  };
+
   const eventsForRepo = (id) => allEvents.filter((e) => e.watched_repo_id === id);
 
   return (
@@ -277,6 +293,7 @@ export default function Watch() {
                 onUpdate={(body) => handleUpdate(w.id, body)}
                 onDelete={() => handleDelete(w.id)}
                 onCheckNow={() => handleCheckNow(w.id)}
+                onReplay={() => handleReplay(w.id)}
                 onShowEvents={() => setExpandedId(expandedId === w.id ? null : w.id)}
                 expanded={expandedId === w.id}
               />

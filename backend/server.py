@@ -425,6 +425,32 @@ async def check_watched_repo_now(wid: str):
     return {"message": "Check triggered"}
 
 
+@api_router.post("/watched-repos/{wid}/replay")
+async def replay_last_commit(wid: str):
+    """Demo helper: reset all branch SHAs to a fake old value so the next
+    watcher pass treats the current HEAD of every branch as a new commit
+    (re-evaluates guardrails + opens issue + fix PR). Then trigger a check."""
+    watched = await db.watched_repos.find_one({"id": wid}, {"_id": 0})
+    if not watched:
+        raise HTTPException(status_code=404, detail="Watched repo not found")
+    if not github_svc:
+        raise HTTPException(status_code=400, detail="GitHub token not configured")
+    if watcher_svc is None:
+        raise HTTPException(status_code=400, detail="Watcher not initialized")
+
+    fake_sha = "0" * 40
+    current = watched.get("last_commits") or {}
+    reset = {b: fake_sha for b in current.keys()} if current else {"main": fake_sha}
+    await db.watched_repos.update_one(
+        {"id": wid}, {"$set": {"last_commits": reset}}
+    )
+    watched["last_commits"] = reset
+    asyncio.create_task(
+        watcher_svc.check_repo(watched, db, github_svc, telegram_svc, _agent_runner, get_llm_key())
+    )
+    return {"message": "Replay triggered — alert + PR will land in ~25s"}
+
+
 @api_router.get("/watch-events")
 async def list_watch_events(watched_repo_id: Optional[str] = None, limit: int = 50):
     q = {}
