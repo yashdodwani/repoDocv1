@@ -353,7 +353,9 @@ async def update_guardrails(gid: str, body: dict):
 
 @api_router.delete("/guardrails/{gid}")
 async def delete_guardrails(gid: str):
-    await db.guardrails.delete_one({"id": gid})
+    result = await db.guardrails.delete_one({"id": gid})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Guardrails not found")
     # Detach from any watched repos
     await db.watched_repos.update_many({"guardrails_id": gid}, {"$set": {"guardrails_id": None}})
     return {"message": "Deleted"}
@@ -401,7 +403,9 @@ async def update_watched_repo(wid: str, body: dict):
 
 @api_router.delete("/watched-repos/{wid}")
 async def delete_watched_repo(wid: str):
-    await db.watched_repos.delete_one({"id": wid})
+    result = await db.watched_repos.delete_one({"id": wid})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Watched repo not found")
     return {"message": "Deleted"}
 
 

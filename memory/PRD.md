@@ -1,82 +1,72 @@
-# RepoDoctor — PRD
+# repoDoc — PRD
 
 ## Problem Statement
-Autonomous Bug Fixing Agent: "Give me a repo → I find, reproduce, fix, and PR bugs automatically—with explainable reasoning."
+Autonomous Bug Fixing Agent + SaaS-grade Continuous Repo Monitoring with Guardrails:
+"Give me a repo → I find, reproduce, fix, and PR bugs automatically — and watch every new commit
+across all branches against your org's coding rules."
 
 ## Architecture
-- **Frontend**: React 19 + Tailwind CSS + shadcn UI (dark terminal theme)
+- **Frontend**: React 19 + Tailwind + shadcn (dark terminal theme, Chivo + JetBrains Mono)
 - **Backend**: FastAPI + MongoDB (Motor async)
 - **LLM**: Gemini 3 Flash via emergentintegrations (Emergent Universal Key)
-- **Agent Loop**: Inspired by OpenClaw — observe → decide → act → verify → create_pr
-- **Integrations**: Telegram Bot (direct API), GitHub REST API
+- **Agent Loop**: observe → decide → act → verify → create_pr (refactored to support seeded bugs + branch targeting)
+- **Watcher**: Background asyncio task polling every 5 min per WatchedRepo
+- **Integrations**: Telegram Bot (polling), GitHub REST/Contents API + Issues API
 
-## Core Requirements (Static)
-1. Accept GitHub repo URL via web UI or Telegram `/analyze` command
-2. Clone repo and build file map (language, test files, entry points)
-3. Detect bugs: failing tests (pytest), lint errors (flake8), logical bugs
-4. Generate minimal fixes using Gemini 3 Flash
-5. Verify fixes by re-running failed tests (max 2 retries)
-6. Create GitHub PR with verified fixes
-7. Send Telegram progress updates throughout
-8. Web dashboard: live agent loop, bug cards, code diffs, PR links
+## Core Requirements
+1. On-demand repo analysis via dashboard or Telegram `/analyze`
+2. Continuous repo watching: poll every 5 min across all branches, detect new commits, fetch diffs
+3. Per-watched-repo guardrails: regex + LLM-driven rules; 4 presets (Security First / Startup / Enterprise / Open Source) + custom rule builder
+4. Violations trigger: WatchEvent record + GitHub Issue + Telegram alert + auto fix-PR back on the originating branch
+5. Conversational AI on Telegram and GitHub PR comments
+6. Web portal: Dashboard, Watch (continuous monitoring), Guardrails, History, Settings
 
-## What's Been Implemented (v1 — Feb 2026)
+## What's Implemented (Apr 2026 — SaaS Pivot Complete)
+
 ### Backend
-- `server.py` — FastAPI with all endpoints, background task management
-- `models.py` — Analysis, Bug, Fix, Settings, AgentStep Pydantic models
-- `agent.py` — Full agentic loop: clone → file map → strategy → run tests → run lint → generate fixes (Gemini) → apply → verify → create PR
-- `github_service.py` — GitHubService: create branch, commit, push, create PR via REST API
-- `telegram_service.py` — TelegramService: polling loop, `/analyze` command handler, message sending
+- `agent.py` — accepts `target_branch`, `seed_bugs`, `watch_event_id`; clones with `-b`, skips pytest/flake8 when seeded, links analysis to WatchEvent
+- `github_service.py` — `list_branches()`, `get_commit()`, `build_diff_from_commit()`, `create_issue()`; `create_pr(base_branch=...)` targets originating branch
+- `guardrails_service.py` — 8 BUILTIN_RULES, 4 PRESET_TEMPLATES, `evaluate_diff()` (regex + LLM via Gemini), `violations_to_bugs()`
+- `watcher_service.py` — `WatcherService.start/tick/check_repo/_process_commit`; first-run baselines silently
+- `models.py` — Guardrails, GuardrailRule, WatchedRepo, WatchEvent
+- `server.py` — full CRUD on guardrails + watched-repos, watch-events list, check-now trigger; watcher started on init_services
 
 ### Frontend
-- `App.js` — Router with NavBar layout
-- `Dashboard.jsx` — Stats bar, submit form, active/recent analyses list
-- `AnalysisDetail.jsx` — Live agent loop stepper + tabs (Bugs/Fixes/Logs) + PR link
-- `History.jsx` — All analyses with filter, delete
-- `Settings.jsx` — GitHub PAT + Telegram token + chat ID config
-- `AgentStepper.jsx` — Animated 5-step stepper (observe/decide/act/verify/create_pr)
-- `CodeDiff.jsx` — Red/green diff viewer with JetBrains Mono
-- `LogStream.jsx` — Live auto-scrolling log stream
-- `BugCard.jsx` — Bug type badges (test/lint/logical), severity, stacktrace, fix explanation
-- `NavBar.jsx` — Fixed header with logo, nav links, live indicator
+- `/guardrails` — preset cards (Security First / Startup / Enterprise / Open Source) + custom rule builder (toggle built-in rules, add regex rules with category/severity), saved rulesets list
+- `/watch` — Add Repo form with guardrails dropdown + chat ID, watched-repo cards (pause/resume/check-now/delete/show events), per-repo expandable events, global recent activity feed
+- NavBar: + Watch + Guardrails links
 
-### API Endpoints
-- `POST /api/analyses` — Start analysis (triggers background asyncio task)
-- `GET /api/analyses` — List all analyses
-- `GET /api/analyses/{id}` — Get full analysis (with logs, bugs, fixes, agent_steps)
-- `DELETE /api/analyses/{id}` — Delete analysis
-- `GET /api/analyses/{id}/stream` — SSE log stream
-- `GET /api/stats` — Dashboard stats
-- `GET /api/settings` — Get settings
-- `POST /api/settings` — Save settings (triggers service re-init)
-- `GET /api/health` — Health check (shows telegram/github status)
+### API Endpoints (new)
+- `GET /api/guardrails/builtin` — list 8 built-in rules + 4 presets
+- `POST /api/guardrails/from-preset` — instantiate from preset key
+- `GET|POST /api/guardrails`, `GET|PUT|DELETE /api/guardrails/{id}`
+- `GET|POST /api/watched-repos`, `PUT|DELETE /api/watched-repos/{id}`, `POST /api/watched-repos/{id}/check-now`
+- `GET /api/watch-events?watched_repo_id=&limit=`
 
-## Test Results (Feb 2026)
-- Backend: 8/8 tests passed (100%)
-- Frontend: 95% pass rate (minor data-testid issues fixed)
-- Live analysis tested: mgedmin/check-python-versions — completed successfully
+### Verified Live
+- yashdodwani/AuditRx: watcher detected new commit on `main` → 5 violations → opened **Issue #2** + **PR #3 → main** ✅
+- 18/18 backend pytest cases passed; frontend 100% with all data-testids in place
 
-## Prioritized Backlog
+## Backlog
 
-### P0 (Critical — missing for full functionality)
-- [ ] User needs to add their GitHub PAT via Settings page
-- [ ] User needs to create Telegram bot via @BotFather and add token
+### P1
+- [ ] Telegram inline approve/reject buttons for fix PRs
+- [ ] JS/TS guardrail support (already runs against any diff; tested only on Python repos)
+- [ ] Webhook mode (replace 5-min polling with GitHub push webhooks)
+- [ ] Editable saved rulesets via UI (currently create + delete only)
+- [ ] Refactor server.py into routers/ subpackage (currently 442 lines)
 
-### P1 (High Value Next Steps)
-- [ ] JavaScript/TypeScript repo support (jest + eslint detection)
-- [ ] Logical bug detection via LLM static analysis (no test runner needed)
-- [ ] Analysis retry/re-run button in UI
-- [ ] Webhook mode for Telegram (instead of polling) for production
+### P2
+- [ ] Multi-org / multi-tenant support with auth
+- [ ] Slack notifications channel
+- [ ] Email digest of weekly violations
+- [ ] PR auto-merge on green CI when violations are auto-fixed
+- [ ] Guardrail "dry run" mode (alert only, no auto-PR)
 
-### P2 (Nice to Have)
-- [ ] Multi-language support (Java, Ruby, Go)
-- [ ] Analysis progress percentage
-- [ ] Email notifications
-- [ ] GitHub App integration (no PAT needed)
-- [ ] Diff syntax highlighting (prism.js)
+### P3
+- [ ] GitHub App (replace PAT)
+- [ ] Watch event delete API + retention policy
+- [ ] Diff syntax highlighting (prism.js) on AnalysisDetail
 
-## Next Tasks
-1. Add GitHub PAT in Settings → Enable PR creation
-2. Add Telegram Bot Token → Enable bot commands
-3. Test with a Python repo that has known failing tests
-4. Test JS/TS repo support
+## Test Credentials
+See `/app/memory/test_credentials.md`. GitHub PAT + Telegram token configured in DB.
