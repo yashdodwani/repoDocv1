@@ -1,0 +1,35 @@
+{
+  "summary": "SaaS-pivot regression + frontend portal validation. Backend: 18/18 pytest cases passed (guardrails CRUD, preset creation, watched-repo lifecycle, check-now first-run baseline, check-now-after-reset clean event with no agent trigger, watch-events filter, delete-detaches-from-watched, plus health/stats/list-analyses regression). Frontend: /watch and /guardrails pages render correctly, nav links route correctly, all 4 preset cards present, clicking 'Security First' preset creates saved ruleset, 'Build Custom' opens builder with all 8 builtin rules togglable + custom regex form, Watch form has URL/guardrails-dropdown/chat-id/submit. No JS console errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_saas.py",
+    "/app/backend/tests/test_repodoctor.py",
+    "/app/test_reports/pytest/saas_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 442 lines — getting close to the 700-line guideline. Consider splitting routes into routers/ subpackage (analyses_router.py, guardrails_router.py, watched_repos_router.py) for maintainability.",
+    "delete_guardrails always returns 200 even when id does not exist (silent no-op). Consider raising 404 for missing IDs.",
+    "delete_watched_repo similarly has no 404 on missing id — silent success.",
+    "check_now endpoint fires asyncio.create_task without awaiting — works, but no way for clients to poll for completion. Acceptable for the MVP.",
+    "DELETE on a guardrails ruleset detaches from watched-repos (good), but does NOT cascade-delete related watch_events. Watch_events with stale rule_ids will remain. Likely intended for audit trail — confirm expectation.",
+    "watcher_service.check_repo updates last_commits AFTER processing all branches — if _process_commit raises mid-loop, previously updated branches won't be persisted. Minor.",
+    "Frontend Watch.jsx polls every 5 seconds via setInterval(fetchAll, 5000) — fine for demo but heavy at scale; consider conditional polling only when expanded."
+  ],
+  "updated_files": ["/app/backend/tests/test_saas.py"],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100%"},
+  "test_credentials": "Already in /app/memory/test_credentials.md (GitHub PAT + Telegram token).",
+  "seed_data_creation": "All test data (watched-repos and guardrails) cleaned up at end of run. Watch events created during check-now-after-reset test on octocat/Hello-World remain in DB (no API to delete them) — these are read-only audit records and do not affect functionality.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend SaaS endpoints fully verified: GET /api/guardrails/builtin returns exactly 8 rules + 4 presets ({security_first, startup, enterprise, open_source}). All CRUD on /api/guardrails and /api/watched-repos works. POST /api/watched-repos/{id}/check-now correctly: (a) populates last_commits silently on first run (no event), (b) records watch_events on subsequent runs, (c) does NOT trigger the agent when guardrails_id is null (violations=0 -> status='clean', analysis_id=null). DELETE /api/guardrails/{id} correctly nulls guardrails_id on linked watched-repos. Frontend Guardrails + Watch pages render with all data-testids in place. Use octocat/Hello-World for read-only watcher tests to avoid spamming yashdodwani/AuditRx with issues/PRs.",
+  "rca of the issue": "N/A — no issues found this run."
+}

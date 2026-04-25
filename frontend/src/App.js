@@ -6,6 +6,8 @@ import Dashboard from "@/pages/Dashboard";
 import AnalysisDetail from "@/pages/AnalysisDetail";
 import History from "@/pages/History";
 import Settings from "@/pages/Settings";
+import Guardrails from "@/pages/Guardrails";
+import Watch from "@/pages/Watch";
 
 function App() {
   return (
@@ -17,6 +19,8 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/analysis/:id" element={<AnalysisDetail />} />
             <Route path="/history" element={<History />} />
+            <Route path="/watch" element={<Watch />} />
+            <Route path="/guardrails" element={<Guardrails />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

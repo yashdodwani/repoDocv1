@@ -1,9 +1,11 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { GitBranch, Settings, Clock, LayoutDashboard } from "lucide-react";
+import { GitBranch, Settings, Clock, LayoutDashboard, ShieldCheck, Eye } from "lucide-react";
 
 const navLinks = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/watch", label: "Watch", icon: Eye },
+  { path: "/guardrails", label: "Guardrails", icon: ShieldCheck },
   { path: "/history", label: "History", icon: Clock },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
