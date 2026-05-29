@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -461,6 +462,17 @@ async def list_watch_events(watched_repo_id: Optional[str] = None, limit: int = 
 
 
 app.include_router(api_router)
+
+BUILD_DIR = ROOT_DIR / "static"
+STATIC_ASSETS_DIR = BUILD_DIR / "static"
+
+if BUILD_DIR.exists():
+    if STATIC_ASSETS_DIR.exists():
+        app.mount("/static", StaticFiles(directory=STATIC_ASSETS_DIR), name="static-assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        return FileResponse(BUILD_DIR / "index.html")
 
 app.add_middleware(
     CORSMiddleware,
