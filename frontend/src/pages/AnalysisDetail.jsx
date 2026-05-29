@@ -6,8 +6,7 @@ import AgentStepper from "@/components/AgentStepper";
 import LogStream from "@/components/LogStream";
 import BugCard from "@/components/BugCard";
 import CodeDiff from "@/components/CodeDiff";
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from "../lib/api";
 
 const RUNNING_STATUSES = ["queued", "cloning", "analyzing", "fixing", "verifying", "creating_pr"];
 

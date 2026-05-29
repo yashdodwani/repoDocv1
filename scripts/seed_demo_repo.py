@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """Seed the repodoc-demo repo with clean baseline + one bug-laden commit."""
 import base64
+import os
 import requests
 import sys
 
-PAT = "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"
+PAT = os.environ.get("GITHUB_TOKEN")
 OWNER = "yashdodwani"
 REPO = "repodoc-demo"
 API = "https://api.github.com"
+
+if not PAT:
+    print("Set GITHUB_TOKEN before running this script.", file=sys.stderr)
+    sys.exit(1)
+
 HEADERS = {
     "Authorization": f"Bearer {PAT}",
     "Accept": "application/vnd.github+json",

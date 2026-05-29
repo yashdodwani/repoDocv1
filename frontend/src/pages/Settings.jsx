@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Save, Eye, EyeOff, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from "../lib/api";
 
 function SettingSection({ title, description, children }) {
   return (

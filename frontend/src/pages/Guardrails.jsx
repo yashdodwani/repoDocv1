@@ -4,8 +4,7 @@ import {
   ShieldCheck, Plus, Trash2, RefreshCw, Sparkles,
   ShieldAlert, Code2, FileWarning, CheckSquare, Square, X,
 } from "lucide-react";
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from "../lib/api";
 
 const SEVERITY_CLASS = {
   critical: "text-red-400 border-red-700",

@@ -2,8 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Play, RefreshCw, GitBranch, Bug, CheckCircle, GitPullRequest } from "lucide-react";
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from "../lib/api";
 
 function StatCard({ label, value, icon: Icon, color }) {
   return (

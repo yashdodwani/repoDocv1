@@ -4,8 +4,7 @@ import {
   Eye, Plus, Trash2, RefreshCw, GitBranch, GitPullRequest,
   AlertCircle, CheckCircle2, ExternalLink, Zap, Power, Rewind,
 } from "lucide-react";
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from "../lib/api";
 
 function AddRepoForm({ guardrails, onAdd }) {
   const [repoUrl, setRepoUrl] = useState("");
