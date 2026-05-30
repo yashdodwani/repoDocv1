@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 from typing import Annotated, Any, List, Optional, Dict
-from bson import ObjectId
 from datetime import datetime, timezone
 import uuid
 
@@ -9,7 +8,6 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
-PyObjectId = Annotated[str, Field(default_factory=lambda: str(ObjectId()))]
 
 
 class LogEntry(BaseModel):
