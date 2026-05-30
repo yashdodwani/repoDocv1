@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+import certifi
 import os
 import logging
 import asyncio
@@ -23,9 +24,34 @@ import guardrails_service as gs_mod
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+class UnavailableDatabase:
+    def __init__(self, reason: str):
+        self.reason = reason
+
+    def __getattr__(self, name: str):
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {self.reason}")
+
+
+mongo_url = os.environ.get("MONGO_URL", "")
+db_name = os.environ.get("DB_NAME", "repodoc")
+client = None
+
+if mongo_url:
+    try:
+        mongo_timeout_ms = int(os.environ.get("MONGO_SERVER_SELECTION_TIMEOUT_MS", "5000"))
+    except ValueError:
+        mongo_timeout_ms = 5000
+    mongo_client_options = {"serverSelectionTimeoutMS": mongo_timeout_ms}
+    if mongo_url.startswith("mongodb+srv://") or "tls=true" in mongo_url or "ssl=true" in mongo_url:
+        mongo_client_options["tlsCAFile"] = certifi.where()
+        mongo_client_options["tlsAllowInvalidCertificates"] = True
+    try:
+        client = AsyncIOMotorClient(mongo_url, **mongo_client_options)
+        db = client[db_name]
+    except Exception as exc:
+        db = UnavailableDatabase(str(exc))
+else:
+    db = UnavailableDatabase("MONGO_URL is not configured")
 
 app = FastAPI(title="repoDoc API")
 api_router = APIRouter(prefix="/api")
@@ -96,7 +122,11 @@ async def _agent_runner(analysis_id: str, repo_url: str, target_branch: Optional
 
 async def init_services():
     global telegram_svc, github_svc, watcher_svc, _telegram_task, _gh_comment_task, _watcher_task
-    settings = await db.settings.find_one({"id": "global"})
+    try:
+        settings = await db.settings.find_one({"id": "global"})
+    except Exception as exc:
+        logger.warning("Skipping optional service initialization; MongoDB is not reachable: %s", exc)
+        return
 
     gh_token = (settings or {}).get("github_token") or os.environ.get("GITHUB_TOKEN", "")
     tg_token = (settings or {}).get("telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -145,10 +175,13 @@ async def trigger_analysis_from_telegram(repo_url: str, chat_id: str):
 @app.on_event("startup")
 async def startup():
     global _keepalive_task
-    await db.analyses.update_many(
-        {"status": {"$in": ["cloning", "analyzing", "fixing", "verifying", "creating_pr"]}},
-        {"$set": {"status": "failed", "error": "Server restarted during analysis"}}
-    )
+    try:
+        await db.analyses.update_many(
+            {"status": {"$in": ["cloning", "analyzing", "fixing", "verifying", "creating_pr"]}},
+            {"$set": {"status": "failed", "error": "Server restarted during analysis"}}
+        )
+    except Exception as exc:
+        logger.warning("MongoDB startup cleanup failed; continuing so web server can bind: %s", exc)
     await init_services()
     if get_keepalive_url() and (_keepalive_task is None or _keepalive_task.done()):
         _keepalive_task = asyncio.create_task(keepalive_loop())
@@ -165,7 +198,8 @@ async def shutdown():
         _watcher_task.cancel()
     if _keepalive_task:
         _keepalive_task.cancel()
-    client.close()
+    if client:
+        client.close()
 
 
 # ── GitHub Webhook ────────────────────────────────────────────────────────────
